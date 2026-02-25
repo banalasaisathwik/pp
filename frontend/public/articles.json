@@ -1,0 +1,67 @@
+[
+  {
+    "id": 1,
+    "authorName": "Alice Johnson",
+    "authorEmail": "alice.johnson@example.com",
+    "title": "SHOCKING: Doctors Hate This One Weird Trick - Click Now!",
+    "url": "https://example.com/tech-revolution-2025",
+    "text": "Buy this amazing miracle cure that will change your life forever! Click here for a free trial offer. This revolutionary product will make you lose 50 pounds in one week guaranteed! Sale ends today - act now! Get your free sample before they run out. Limited time offer! Doctors don't want you to know this secret!",
+    "image": {
+      "url": "https://images.pexels.com/photos/443446/pexels-photo-443446.jpeg",
+      "firstAppeared": "2025-01-15T10:00:00Z",
+      "reused": false
+    }
+  },
+  {
+    "id": 2,
+    "authorName": "Bob Smith",
+    "authorEmail": "bob.smith@example.com",
+    "title": "Healthy Eating Habits",
+    "url": "https://example.com/healthy-eating",
+    "text": "Eating a balanced diet with fruits and vegetables can greatly improve your health...",
+    "image": {
+      "url": "https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg",
+      "firstAppeared": "2025-02-10T09:30:00Z",
+      "reused": false
+    }
+  },
+  {
+    "id": 3,
+    "authorName": "Charlie Lee",
+    "authorEmail": "charlie.lee@example.com",
+    "title": "Stock Market Insights",
+    "url": "https://example.com/stock-market-insights",
+    "text": "The stock market is showing volatility due to global economic factors...",
+    "image": {
+      "url": "https://images.pexels.com/photos/210607/pexels-photo-210607.jpeg",
+      "firstAppeared": "2025-03-05T14:15:00Z",
+      "reused": false
+    }
+  },
+  {
+    "id": 4,
+    "authorName": "Alice Johnson",
+    "authorEmail": "alice.johnson@example.com",
+    "title": "Travel Guide to Japan",
+    "url": "https://example.com/japan-travel-guide",
+    "text": "Japan offers stunning landscapes, rich culture, and delicious cuisine...",
+    "image": {
+      "url": "https://images.pexels.com/photos/548025/pexels-photo-548025.jpeg",
+      "firstAppeared": "2025-04-12T11:00:00Z",
+      "reused": false
+    }
+  },
+  {
+    "id": 5,
+    "authorName": "David Brown",
+    "authorEmail": "david.brown@example.com",
+    "title": "Climate Change Effects",
+    "url": "https://example.com/climate-change-effects",
+    "text": "Rising global temperatures are causing sea level rise and extreme weather events...",
+    "image": {
+      "url": "https://images.pexels.com/photos/459225/pexels-photo-459225.jpeg",
+      "firstAppeared": "2025-05-20T08:00:00Z",
+      "reused": false
+    }
+  }
+]
