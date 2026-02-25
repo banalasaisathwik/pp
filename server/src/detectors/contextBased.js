@@ -1,4 +1,3 @@
-// src/detectors/contextBased.js
 const axios = require('axios');
 const cheerio = require('cheerio');
 const Sentiment = require('sentiment');
@@ -12,7 +11,6 @@ async function fetchHTML(url){
 }
 
 async function computeContextScore(url, title, text){
-  // 1) Ads heuristic: count iframes/scripts with "ads"
   const html = await fetchHTML(url);
   let adsCount = 0;
   if(html){
@@ -21,10 +19,8 @@ async function computeContextScore(url, title, text){
   }
   const adPenalty = Math.min(1, adsCount / 3); // >3 is suspicious
 
-  // 2) Domain age heuristic — can use whois package or skip for MVP
-  let domainScore = 0.7; // placeholder (0..1) increase if old domain
+  let domainScore = 0.7; 
 
-  // 3) sentiment gap (title vs body)
   const titleSent = sentiment.analyze(title || '').score;
   const bodySent = sentiment.analyze(text || '').score;
   const gap = Math.abs(titleSent - bodySent);

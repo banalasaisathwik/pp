@@ -1,4 +1,3 @@
-// src/detectors/factBased.js
 const tf = require('@tensorflow/tfjs');
 const use = require('@tensorflow-models/universal-sentence-encoder');
 
@@ -21,7 +20,6 @@ async function wikiSummaryForQuery(query){
   }
 }
 
-// compute semantic similarity (cosine) between two strings
 async function cosineSim(a, b){
   const model = await getModel();
   const embeddings = await model.embed([a, b]);
@@ -39,7 +37,6 @@ async function computeFactScore(text){
   if(sentences.length === 0) return 0.5;
   let supported = 0;
   for(const s of sentences){
-    // build query from first few words (MVP)
     const q = s.split(' ').slice(0,6).join(' ').replace(/[^a-zA-Z0-9\s]/g,'');
     const wiki = await wikiSummaryForQuery(q);
     if(wiki){

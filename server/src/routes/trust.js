@@ -3,12 +3,10 @@ const router = express.Router();
 const Author = require('../models/Author');
 const Article = require('../models/Article');
 
-// 🟢 Create a new author
 router.post('/author', async (req, res) => {
   try {
     const { name, email } = req.body;
 
-    // Prevent duplicate author entries by email
     let author = await Author.findOne({ email });
     if (author) {
       return res.status(400).json({ message: 'Author already exists', author });
@@ -25,26 +23,21 @@ router.post('/author', async (req, res) => {
 });
 
 
-// 🟡 Add new article + update author trust
 router.post('/article', async (req, res) => {
   try {
     const { url, source, title, text, M, F, C, authorEmail } = req.body;
 
-    // Weighted trust formula (you can replace later with teammates’ logic)
     const f = 0.5 * M + 0.3 * F + 0.2 * C;
 
-    // Find author
     let author = await Author.findOne({ email: authorEmail });
     if (!author) {
   author = new Author({ name: source || 'Unknown', email: authorEmail });
   await author.save();
     }
 
-    // Create new article
     const article = new Article({ url, source, title, text, M, F, C, f, author: author._id });
     await article.save();
 
-    // Update author trust
     author.totalArticles += 1;
 
     if (f >= 0.7) {
@@ -68,7 +61,6 @@ router.post('/article', async (req, res) => {
 });
 
 
-// 🔵 Get author details with all articles
 router.get('/author/:email', async (req, res) => {
   try {
     const author = await Author.findOne({ email: req.params.email }).lean();
