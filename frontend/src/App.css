@@ -1,42 +1,104 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+:root {
+  --bg: #0f172a;
+  --bg-soft: #111827;
+  --card: #1f2937;
+  --text: #e5e7eb;
+  --muted: #94a3b8;
+  --border: #334155;
+  --accent: #6366f1;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.theme-light {
+  --bg: #f8fafc;
+  --bg-soft: #eef2ff;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #475569;
+  --border: #dbeafe;
+  --accent: #4f46e5;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+* { box-sizing: border-box; }
+body { margin: 0; }
+
+.app {
+  min-height: 100vh;
+  background: linear-gradient(180deg, var(--bg), var(--bg-soft));
+  color: var(--text);
+  font-family: Inter, system-ui, Arial, sans-serif;
+  transition: all .25s ease;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
 }
+.topbar h1 { margin: 0; font-size: 1.3rem; }
+.mode-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: .5rem .8rem; cursor: pointer; }
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 1rem;
+  padding: 1rem;
+}
+@media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
+
+.feed h2, .detail h2 { margin: .5rem 0 1rem; }
+.feed-grid { display: grid; gap: .8rem; }
 
 .card {
-  padding: 2em;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem;
+  transition: transform .18s ease, box-shadow .18s ease;
 }
+.news-card { cursor: pointer; }
+.news-card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,.15); }
+.news-card.active { outline: 2px solid var(--accent); }
 
-.read-the-docs {
-  color: #888;
+.news-card h3 { margin: 0 0 .5rem; font-size: 1rem; }
+.news-card p { margin: 0 0 .75rem; color: var(--muted); font-size: .92rem; }
+.meta-row { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
+
+.pill { padding: .2rem .55rem; border-radius: 999px; font-size: .72rem; font-weight: 700; }
+.trust-good { background: #14532d; color: #bbf7d0; }
+.trust-warn { background: #78350f; color: #fde68a; }
+.trust-bad { background: #7f1d1d; color: #fecaca; }
+.chain-ok { margin-top: .5rem; display: inline-block; background: #0f766e; color: #99f6e4; }
+
+.detail-card h3 { margin-top: 0; }
+.detail-card a { color: #60a5fa; text-decoration: none; word-break: break-all; }
+.content { margin-top: .7rem; color: var(--text); }
+
+.score-hero { margin: 1rem 0; font-size: 1.35rem; font-weight: 800; color: #22c55e; }
+.bars { display: grid; gap: .6rem; margin-bottom: 1rem; }
+.bar-row { display: grid; gap: .25rem; }
+.bar-track { width: 100%; height: 8px; background: rgba(148,163,184,.3); border-radius: 999px; overflow: hidden; }
+.bar-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #8b5cf6); transition: width .3s ease; }
+
+.card-lite { background: rgba(99,102,241,.1); border: 1px solid var(--border); border-radius: 12px; padding: .8rem; margin-top: .8rem; }
+.verify-btn { margin-top: .6rem; background: var(--accent); color: white; border: none; border-radius: 8px; padding: .45rem .8rem; cursor: pointer; }
+.verify-result { margin-top: .5rem; font-size: .88rem; color: var(--muted); }
+
+.toast {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  padding: .7rem 1rem;
+  border-radius: 10px;
+  font-weight: 600;
+  z-index: 20;
 }
+.toast.success { background: #14532d; color: #bbf7d0; }
+.toast.error { background: #7f1d1d; color: #fecaca; }
+
+.error { color: #fca5a5; }
+.skeleton-block { height: 260px; border-radius: 10px; background: linear-gradient(90deg, rgba(148,163,184,.2), rgba(148,163,184,.35), rgba(148,163,184,.2)); animation: shimmer 1.3s infinite; }
+@keyframes shimmer { 0% { background-position: -300px 0; } 100% { background-position: 300px 0; } }
+.fade-in { animation: fade .22s ease; }
+@keyframes fade { from { opacity: .2; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }

@@ -1,68 +1,104 @@
+const mongoose = require('mongoose');
 const { computeMessageScore } = require('../detectors/messageBased');
 const { computeFactScore } = require('../detectors/factBased');
 const { computeContextScore } = require('../detectors/contextBased');
-const Article = require('../models/Article');
-const Author = require('../models/Author');
-const axios = require('axios'); // for external ML API calls
+const articleRepository = require('../repositories/articleRepository');
+const authorRepository = require('../repositories/authorRepository');
+const { getScoresFromML } = require('../clients/mlClient');
+const {
+  computeCompositeScore,
+  applyAuthorTrustUpdate,
+} = require('../domain/trustPolicy');
+const logger = require('../utils/logger');
+const metrics = require('../utils/metrics');
+
+function supportsTransactions(connection) {
+  return connection?.readyState === 1;
+}
+
+function isTransactionUnsupportedError(err) {
+  const message = String(err?.message || '');
+  return message.includes('Transaction numbers are only allowed')
+    || message.includes('does not support retryable writes')
+    || message.includes('replica set');
+}
+
+async function runWithOptionalTransaction(work) {
+  if (!supportsTransactions(mongoose.connection)) {
+    return work({});
+  }
+
+  const session = await mongoose.startSession();
+  try {
+    let result;
+    await session.withTransaction(async () => {
+      result = await work({ session });
+    });
+    return result;
+  } catch (err) {
+    if (!isTransactionUnsupportedError(err)) throw err;
+    logger.warn('transaction_fallback_non_supported', { message: err.message });
+    return work({});
+  } finally {
+    await session.endSession();
+  }
+}
 
 async function calculateAndUpdateScores({ url, title, text, source, authorEmail }) {
+  const existingArticle = await articleRepository.findByUrl(url);
+
+  if (existingArticle) {
+    const author = await authorRepository.findById(existingArticle.author);
+    return {
+      fromCache: true,
+      M: existingArticle.M,
+      F: existingArticle.F,
+      C: existingArticle.C,
+      f: existingArticle.f,
+      author: {
+        name: author?.name || source || 'Unknown',
+        email: author?.email || authorEmail,
+        trustScore: author?.trustScore ?? 0.5,
+        totalArticles: author?.totalArticles ?? 0,
+        fakeArticles: author?.fakeArticles ?? 0,
+      },
+    };
+  }
+
+  let M;
+  let F;
+  let C;
   try {
-    const existingArticle = await Article.findOne({ url });
+    const mlData = await getScoresFromML({ url, title, text, source, authorEmail });
+    ({ M, F, C } = mlData);
+  } catch (mlErr) {
+    metrics.increment('mlFailureCount');
+    metrics.increment('fallbackUsageCount');
+    logger.warn('ml_fallback_to_local_detectors', { message: mlErr.message });
+    [M, F, C] = await Promise.all([
+      computeMessageScore(text),
+      computeFactScore(text),
+      computeContextScore(url, title, text),
+    ]);
+  }
 
-    if (existingArticle) {
-      const author = await Author.findById(existingArticle.author);
-      return {
-        fromCache: true,
-        M: existingArticle.M,
-        F: existingArticle.F,
-        C: existingArticle.C,
-        f: existingArticle.f,
-        author: {
-          name: author?.name || source || 'Unknown',
-          email: author?.email || authorEmail,
-          trustScore: author?.trustScore ?? 0.5,
-          totalArticles: author?.totalArticles ?? 0,
-          fakeArticles: author?.fakeArticles ?? 0
-        }
-      };
-    }
+  const alpha = parseFloat(process.env.ALPHA || 0.4);
+  const beta = parseFloat(process.env.BETA || 0.4);
+  const f = computeCompositeScore({ M, F, C, alpha, beta });
 
-    let author = await Author.findOne({ email: authorEmail });
-    if (!author) {
-      author = new Author({
+  const author = await runWithOptionalTransaction(async ({ session }) => {
+    let currentAuthor = await authorRepository.findByEmail(authorEmail, { session });
+    if (!currentAuthor) {
+      currentAuthor = await authorRepository.create({
         name: source || 'Unknown',
         email: authorEmail,
         trustScore: 0.5,
         totalArticles: 0,
-        fakeArticles: 0
-      });
-      await author.save();
+        fakeArticles: 0,
+      }, { session });
     }
 
-    let M, F, C;
-    try {
-      const mlResponse = await axios.post(process.env.ML_API_URL, {
-        url,
-        title,
-        text,
-        source,
-        authorEmail
-      });
-      ({ M, F, C } = mlResponse.data);
-    } catch (mlErr) {
-      console.error('ML API failed, falling back to local detectors');
-      [M, F, C] = await Promise.all([
-        computeMessageScore(text),
-        computeFactScore(text),
-        computeContextScore(url, title, text)
-      ]);
-    }
-
-    const alpha = parseFloat(process.env.ALPHA || 0.4);
-    const beta = parseFloat(process.env.BETA || 0.4);
-    const f_i = alpha * M + beta * F + (1 - alpha - beta) * C;
-
-    const newArticle = new Article({
+    await articleRepository.create({
       url,
       source,
       title,
@@ -70,39 +106,30 @@ async function calculateAndUpdateScores({ url, title, text, source, authorEmail 
       M,
       F,
       C,
-      f: f_i,
-      author: author._id,
-      createdAt: new Date()
-    });
-    await newArticle.save();
+      f,
+      author: currentAuthor._id,
+      createdAt: new Date(),
+    }, { session });
 
-    author.totalArticles += 1;
-    if (f_i >= 0.7) {
-      author.trustScore = Math.min(author.trustScore + 0.05, 1);
-    } else if (f_i < 0.3) {
-      author.fakeArticles += 1;
-      author.trustScore = Math.max(author.trustScore - 0.1, 0);
-    }
-    await author.save();
+    applyAuthorTrustUpdate(currentAuthor, f);
+    await authorRepository.save(currentAuthor, { session });
+    return currentAuthor;
+  });
 
-    return {
-      fromCache: false,
-      M,
-      F,
-      C,
-      f: f_i,
-      author: {
-        name: author.name,
-        email: author.email,
-        trustScore: author.trustScore,
-        totalArticles: author.totalArticles,
-        fakeArticles: author.fakeArticles
-      }
-    };
-  } catch (err) {
-    console.error('Error calculating trust score:', err);
-    return { error: err.message };
-  }
+  return {
+    fromCache: false,
+    M,
+    F,
+    C,
+    f,
+    author: {
+      name: author.name,
+      email: author.email,
+      trustScore: author.trustScore,
+      totalArticles: author.totalArticles,
+      fakeArticles: author.fakeArticles,
+    },
+  };
 }
 
 module.exports = { calculateAndUpdateScores };
