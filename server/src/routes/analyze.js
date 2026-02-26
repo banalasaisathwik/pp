@@ -1,18 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const { calculateAndUpdateScores } = require('../services/scoreService');
+const { sendSuccess, sendError } = require('../utils/response');
+const logger = require('../utils/logger');
 
 router.post('/', async (req, res) => {
   const { url, title, text, source, authorEmail } = req.body;
-  if (!text) return res.status(400).json({ error: 'text required' });
-  if (!authorEmail) return res.status(400).json({ error: 'authorEmail required' });
+  if (!text) return sendError(res, 'text required', 400);
+  if (!authorEmail) return sendError(res, 'authorEmail required', 400);
 
   try {
     const result = await calculateAndUpdateScores({ url, title, text, source, authorEmail });
-    res.json(result);
+    return sendSuccess(res, result);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'internal error', details: err.message });
+    logger.error('analyze_failed', {
+      requestId: req.requestId,
+      message: err.message,
+    });
+    return sendError(res, 'internal error', 500);
   }
 });
 
