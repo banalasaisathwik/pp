@@ -59,6 +59,10 @@ router.post('/article', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+router.get("/all", async (req, res) => {
+  const articles = await Article.find().sort({ createdAt: -1 });
+  res.json(articles);
+});
 
 
 router.get('/author/:email', async (req, res) => {

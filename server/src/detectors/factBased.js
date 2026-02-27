@@ -41,10 +41,11 @@ async function computeFactScore(text){
     const wiki = await wikiSummaryForQuery(q);
     if(wiki){
       const sim = await cosineSim(s, wiki);
-      if(sim > 0.55) supported++;
+      if(sim > 0.35) supported++;
     }
   }
-  return supported / sentences.length;
+const rawScore = supported / sentences.length;
+return Math.max(0.1, rawScore);
 }
 
 module.exports = { computeFactScore, getModel };

@@ -15,6 +15,8 @@ app.get('/', (req, res) => res.send('Server is working ✅'));
 
 app.use('/api/analyze', require('./routes/analyze'));
 app.use("/api/image", require("./routes/imageTrust"));
+app.use("/api/verify", require("./routes/verify"));
+app.use("/api/trust", require("./routes/trust"));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, ()=> console.log(`Server running on ${PORT}`));

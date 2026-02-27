@@ -12,6 +12,9 @@ function cleanText(text){
 function computeMessageScore(text){
   const clean = cleanText(text);
   const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length < 8) {
+  return 0.2; // extremely short content suspicious
+}
   if(words.length === 0) return 0.5;
 
   const sentences = clean.split(/[.!?]+/).filter(Boolean);
@@ -27,8 +30,9 @@ function computeMessageScore(text){
 
   const exclam = (clean.match(/!/g) || []).length;
   const allcaps = (clean.match(/\b[A-Z]{3,}\b/g) || []).length;
-  const emph = Math.min(1, (exclam + allcaps)/5);
-  const pScore = 1 - emph;
+const emphStrength = (exclam * 0.4) + (allcaps * 0.6);
+const emph = Math.min(1, emphStrength);
+const pScore = 1 - Math.min(1, emph);
 
   const M = 0.3*rScore + 0.3*ttr + 0.2*subjectivityPenalty + 0.2*pScore;
   return Math.max(0, Math.min(1, M));

@@ -1,363 +1,359 @@
-import { useState, useEffect, type CSSProperties } from 'react';
+import { useEffect, useState } from "react";
+import axios from "axios";
 
-type ImageInfo = {
-  url: string;
-  firstAppeared?: string;
-  reused?: boolean;
-  sha256?: string;
-  sourceId?: string;
-};
-
-type AnalysisResponse = {
-  M?: number;
-  F?: number;
-  C?: number;
-  f?: number;
-  error?: string;
-  author?: {
-    name?: string;
-    email?: string;
-    trustScore?: number;
-    totalArticles?: number;
-    fakeArticles?: number;
-  };
-  imageInfo?: ImageInfo;
-};
+const API = "http://localhost:5000";
 
 type Article = {
-  id: number;
-  authorName: string;
-  authorEmail: string;
+  _id: string;
   title: string;
-  url: string;
+  source: string;
   text: string;
-  image?: ImageInfo;
+  M: number;
+  F: number;
+  C: number;
+  f: number;
+  textHash: string;
+  blockchain?: {
+    txHash?: string;
+    anchored?: boolean;
+    anchoredAt?: string;
+  };
+  image?: {
+    reused?: boolean;
+    similarityPercentage?: string;
+    matchedWith?: string;
+  };
 };
 
 export default function App() {
   const [articles, setArticles] = useState<Article[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [analysisCache, setAnalysisCache] = useState<Record<number, AnalysisResponse>>({});
+  const [selected, setSelected] = useState<Article | null>(null);
+  const [verification, setVerification] = useState<any>(null);
+  const [showForm, setShowForm] = useState(false);
+
+  const [form, setForm] = useState({
+    title: "",
+    text: "",
+    source: "",
+    authorEmail: ""
+  });
 
   useEffect(() => {
-    fetch('/articles.json')
-      .then(res => res.json())
-      .then((data: Article[]) => {
-        setArticles(data);
-        prefetchScores(data, 0, {});
-      })
-      .catch(err => console.error('Failed to load articles.json:', err));
-
-    const cached = localStorage.getItem('analysisCache');
-    if (cached) setAnalysisCache(JSON.parse(cached));
+    fetchArticles();
   }, []);
 
-  const prefetchScores = async (
-    articleList: Article[],
-    startIndex: number,
-    currentCache: Record<number, AnalysisResponse>
-  ) => {
-    const batch = articleList.slice(startIndex, startIndex + 10);
-    const newCache = { ...currentCache };
+  const fetchArticles = async () => {
+    const res = await axios.get(`${API}/api/trust/all`);
+    setArticles(res.data);
+  };
 
-    await Promise.all(batch.map(async (article) => {
-      if (!newCache[article.id]) {
-        let data: AnalysisResponse = {};
-        try {
-          const res = await fetch('http://172.16.5.182:5000', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              title: article.title,
-              text: article.text,
-            }),
-          });
-          data = await res.json();
-        } catch (err) {
-          console.error('ML API failed:', err);
-          data.error = 'Failed to fetch score';
-        }
-if (article.image?.url) {
-  try {
-    const wmRes = await fetch('/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        imageUrl: article.image.url,
-        sourceId: article.authorEmail,
-        payload: { authorName: article.authorName, title: article.title },
-      }),
-    });
-
-    const wmData = await wmRes.json();
-
-    if (wmData?.info) {
-      data.imageInfo = {
-        url: wmData.info.url ?? article.image.url,
-        firstAppeared: wmData.info.firstAppeared,
-        reused: wmData.info.reused,
-        sha256: wmData.info.sha256,
-        sourceId: wmData.info.sourceId,
-      };
-    } else {
-      console.warn('No image info returned from DB, using fallback');
-      data.imageInfo = { url: article.image.url, sourceId: article.authorEmail };
+  const handleSubmit = async () => {
+    try {
+      await axios.post(`${API}/api/analyze`, form);
+      setForm({ title: "", text: "", source: "", authorEmail: "" });
+      setShowForm(false);
+      fetchArticles();
+    } catch {
+      alert("Failed to add article");
     }
-  } catch (err) {
-    console.error('Failed to fetch or insert image info:', err);
-    data.imageInfo = { url: article.image.url, sourceId: article.authorEmail };
-  }
-}
-
-
-        newCache[article.id] = data;
-      }
-    }));
-
-    setAnalysisCache(newCache);
-    localStorage.setItem('analysisCache', JSON.stringify(newCache));
   };
 
-  useEffect(() => {
-    if (articles.length === 0) return;
-    const batchStart = Math.floor(currentIndex / 10) * 10;
-    prefetchScores(articles, batchStart, analysisCache);
-  }, [currentIndex, articles]);
-
-  const nextArticle = () => setCurrentIndex(i => Math.min(i + 1, articles.length - 1));
-  const prevArticle = () => setCurrentIndex(i => Math.max(i - 1, 0));
-
-  const currentArticle = articles[currentIndex];
-  const res = currentArticle ? analysisCache[currentArticle.id] : null;
-
-  const container: CSSProperties = {
-    minHeight: '100vh',
-    background: 'linear-gradient(135deg, #f9fafb, #f3f4f6)',
-    padding: '1rem',
-    fontFamily: 'Arial, sans-serif',
-  };
-
-  const headerStyle: CSSProperties = {
-    textAlign: 'center',
-    marginBottom: '2rem',
-    fontSize: '2.5rem',
-    fontWeight: 'bold',
-    background: 'linear-gradient(to right, #2563eb, #8b5cf6)',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-  };
-
-  const articleCard: CSSProperties = {
-    backgroundColor: 'white',
-    borderRadius: '16px',
-    padding: '1.5rem',
-    marginBottom: '1.5rem',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-  };
-
-  const articleTitle: CSSProperties = {
-    fontSize: '1.5rem',
-    fontWeight: 'bold',
-    marginBottom: '0.5rem',
-  };
-
-  const articleText: CSSProperties = {
-    color: '#4b5563',
-    lineHeight: 1.6,
-  };
-
-  const imageStyle: CSSProperties = {
-    width: '100%',
-    height: '15rem',
-    objectFit: 'cover',
-    borderTopLeftRadius: '16px',
-    borderTopRightRadius: '16px',
-  };
-
-  const overlayStyle: CSSProperties = {
-    position: 'absolute',
-    top: '0.5rem',
-    left: '0.5rem',
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    color: 'white',
-    padding: '0.25rem 0.5rem',
-    borderRadius: '8px',
-    fontSize: '0.75rem',
-  };
-
-  const analysisCard: CSSProperties = {
-    backgroundColor: '#eff6ff',
-    borderRadius: '16px',
-    padding: '1rem',
-    marginBottom: '1rem',
-    boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)',
-  };
-
-  const analysisItem: CSSProperties = {
-    backgroundColor: 'rgba(255,255,255,0.8)',
-    borderRadius: '12px',
-    padding: '0.75rem',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-  };
-
-  const navButton: CSSProperties = {
-    flex: 1,
-    padding: '0.75rem 1rem',
-    cursor: 'pointer',
-    borderRadius: '8px',
-  };
-
-  const disabledButton: CSSProperties = {
-    ...navButton,
-    opacity: 0.5,
-    cursor: 'not-allowed',
+  const verifyArticle = async (hash: string) => {
+    const res = await axios.get(`${API}/api/verify/${hash}`);
+    setVerification(res.data);
   };
 
   return (
-    <div style={container}>
-      <header style={headerStyle}> News Trust Analysis</header>
+    <div style={styles.container}>
 
-      {currentArticle && (
-        <div style={{ borderRadius: '16px', overflow: 'hidden', boxShadow: '0 6px 18px rgba(0,0,0,0.1)' }}>
-          {/* Article Image */}
-          {currentArticle.image && (
-  <div style={{ position: 'relative' }}>
-    <img src={currentArticle.image.url} alt={currentArticle.title} style={imageStyle} />
-    {res?.imageInfo?.firstAppeared && (
-      <div style={overlayStyle}>
-        First Appeared:{' '}
-        {res.imageInfo.reused
-          ? `${new Date(res.imageInfo.firstAppeared).toLocaleDateString()} ⚠️ Old Image`
-          : new Date(res.imageInfo.firstAppeared).toLocaleDateString()}
-      </div>
-    )}
-  </div>
-)}
+      {/* SIDEBAR */}
+      <div style={styles.sidebar}>
+        <h2 style={{ marginBottom: "1rem" }}>TrustChain</h2>
 
+        <button
+          style={styles.primaryButton}
+          onClick={() => setShowForm(!showForm)}
+        >
+          {showForm ? "Close Form" : "+ Add Article"}
+        </button>
 
-          <div style={{ padding: '1.5rem' }}>
-            {/* Article Card */}
-            <div style={articleCard}>
-              <h2 style={articleTitle}>{currentArticle.title}</h2>
-              <a
-                href={currentArticle.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ fontSize: '0.875rem', color: '#2563eb', display: 'block', marginBottom: '0.5rem' }}
-              >
-                {currentArticle.url}
-              </a>
-              <p style={articleText}>{currentArticle.text}</p>
-            </div>
+        {showForm && (
+          <div style={styles.formCard}>
+            <input
+              placeholder="Title"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              style={styles.input}
+            />
+            <textarea
+              placeholder="Text"
+              value={form.text}
+              onChange={(e) => setForm({ ...form, text: e.target.value })}
+              style={styles.textarea}
+            />
+            <input
+              placeholder="Source"
+              value={form.source}
+              onChange={(e) => setForm({ ...form, source: e.target.value })}
+              style={styles.input}
+            />
+            <input
+              placeholder="Author Email"
+              value={form.authorEmail}
+              onChange={(e) =>
+                setForm({ ...form, authorEmail: e.target.value })
+              }
+              style={styles.input}
+            />
+            <button style={styles.primaryButton} onClick={handleSubmit}>
+              Submit
+            </button>
+          </div>
+        )}
 
-            {/* Analysis & Author side by side */}
-{res && !res.error && (
-  <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '1rem' }}>
-    {/* Analysis Results */}
-    <div style={{ ...analysisCard, flex: 1, minWidth: '300px' }}>
-      <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem' }}>📊 Analysis Results</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-        {[
-          { label: 'Message Score (M)', value: res.M },
-          { label: 'Fact Score (F)', value: res.F },
-          { label: 'Context Score (C)', value: res.C },
-          { label: 'Trust Score (f)', value: res.f },
-        ].map(({ label, value }) => {
-          const isTrustScore = label === 'Trust Score (f)';
-          const lowScore = isTrustScore && typeof value === 'number' && value < 0.3;
+        <hr style={{ margin: "1rem 0" }} />
 
-          return (
+        <div style={{ overflowY: "auto", flex: 1 }}>
+          {articles.map((article) => (
             <div
-              key={label}
+              key={article._id}
               style={{
-                ...analysisItem,
-                backgroundColor: lowScore ? '#fee2e2' : 'rgba(255,255,255,0.8)',
+                ...styles.articleCard,
+                backgroundColor:
+                  selected?._id === article._id ? "#e8f0ff" : "#fff"
+              }}
+              onClick={() => {
+                setSelected(article);
+                setVerification(null);
               }}
             >
-              <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>{label}</p>
-              <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: lowScore ? '#b91c1c' : '#2563eb' }}>
-                {typeof value === 'number' ? value.toFixed(3) : 'N/A'}
+              <h4>{article.title}</h4>
+              <p style={{ fontSize: "0.8rem", color: "#666" }}>
+                Trust Score: {article.f.toFixed(2)}
               </p>
             </div>
-          );
-        })}
-      </div>
-    </div>
-
-    {/* Author Profile */}
-    {res.author && (
-      <div
-        style={{
-          ...analysisCard,
-          flex: 1,
-          minWidth: '300px',
-          background: 'linear-gradient(135deg, #d1fae5, #a7f3d0)',
-        }}
-      >
-        <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem' }}>👤 Author Profile</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-          <div style={analysisItem}>
-            <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Author</p>
-            <p style={{ fontWeight: 600 }}>{res.author.name ?? 'N/A'}</p>
-            <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.5rem' }}>{res.author.email ?? 'N/A'}</p>
-          </div>
-          <div
-            style={{
-              ...analysisItem,
-              backgroundColor:
-                res.author.trustScore !== undefined && res.author.trustScore < 0.3 ? '#fee2e2' : 'rgba(255,255,255,0.8)',
-            }}
-          >
-            <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Trust Score</p>
-            <p
-              style={{
-                fontSize: '1.5rem',
-                fontWeight: 'bold',
-                color:
-                  res.author.trustScore !== undefined && res.author.trustScore < 0.3 ? '#b91c1c' : '#2563eb',
-              }}
-            >
-              {res.author.trustScore?.toFixed(2) ?? 'N/A'}
-            </p>
-          </div>
-          <div style={analysisItem}>
-            <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Total Articles</p>
-            <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#374151' }}>{res.author.totalArticles ?? '0'}</p>
-          </div>
-          <div style={analysisItem}>
-            <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Fake Articles</p>
-            <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#dc2626' }}>{res.author.fakeArticles ?? '0'}</p>
-          </div>
+          ))}
         </div>
       </div>
+
+      {/* MAIN CONTENT */}
+      <div style={styles.main}>
+        {selected ? (
+          <div style={styles.detailCard}>
+            <h2>{selected.title}</h2>
+            <p><strong>Source:</strong> {selected.source}</p>
+            <p style={{ marginTop: "1rem" }}>{selected.text}</p>
+
+            <hr />
+
+            <h3>AI Scores</h3>
+            <div style={styles.scoreGrid}>
+              <Score label="Message" value={selected.M} />
+              <Score label="Fact" value={selected.F} />
+              <Score label="Context" value={selected.C} />
+              <Score label="Final Trust" value={selected.f} highlight />
+            </div>
+
+            <hr />
+
+            <h3>Blockchain</h3>
+            {selected.blockchain?.anchored ? (
+              <>
+                <p style={{ color: "green" }}>✅ Anchored</p>
+                <p style={styles.hash}>
+                  Tx: {selected.blockchain.txHash}
+                </p>
+
+                <button
+                  style={styles.primaryButton}
+                  onClick={() => verifyArticle(selected.textHash)}
+                >
+                  Verify On Chain
+                </button>
+              </>
+            ) : (
+              <p style={{ color: "red" }}>❌ Not Anchored</p>
+            )}
+
+            <hr />
+
+<h3>Image Analysis</h3>
+
+{selected.image ? (
+  <>
+    {selected.image.reused ? (
+      <p style={{ color: "red", fontWeight: "bold" }}>
+        ⚠ Similar Image Found
+      </p>
+    ) : (
+      <p style={{ color: "green" }}>
+        ✅ Image Appears Original
+      </p>
     )}
-  </div>
+
+    <p>
+      Similarity:{" "}
+      <strong>{parseFloat(selected.image.similarityPercentage || "0").toFixed(2)}%</strong>
+    </p>
+
+    {selected.image.similarityPercentage &&
+      parseFloat(selected.image.similarityPercentage) > 85 && (
+        <p style={{ color: "darkred" }}>
+          ⚠ High similarity — likely reused image
+        </p>
+      )}
+
+    {selected.image.matchedWith && (
+      <>
+        <h4>Matched Image</h4>
+        <img
+          src={selected.image.matchedWith}
+          style={{
+            maxWidth: "300px",
+            borderRadius: "8px",
+            marginTop: "10px",
+            boxShadow: "0 2px 6px rgba(0,0,0,0.1)"
+          }}
+        />
+      </>
+    )}
+  </>
+) : (
+  <p>No image analysis available</p>
 )}
 
-
-            {/* Navigation */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2rem', gap: '1rem' }}>
-              <button
-                onClick={prevArticle}
-                disabled={currentIndex === 0}
-                style={currentIndex === 0 ? disabledButton : navButton}
-              >
-                ← Previous
-              </button>
-              <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                {currentIndex + 1} of {articles.length}
-              </span>
-              <button
-                onClick={nextArticle}
-                disabled={currentIndex === articles.length - 1}
-                style={currentIndex === articles.length - 1 ? disabledButton : navButton}
-              >
-                Next →
-              </button>
-            </div>
+            {verification && (
+              <div style={styles.verificationBox}>
+                <h4>Verification Result</h4>
+                <pre>{JSON.stringify(verification, null, 2)}</pre>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        ) : (
+          <div style={styles.placeholder}>
+            <h2>Select an article from the left</h2>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+
+/* COMPONENTS */
+
+const Score = ({
+  label,
+  value,
+  highlight
+}: {
+  label: string;
+  value: number;
+  highlight?: boolean;
+}) => (
+  <div
+    style={{
+      padding: "1rem",
+      borderRadius: "12px",
+      background: highlight ? "#2563eb" : "#f4f6f8",
+      color: highlight ? "white" : "#333",
+      textAlign: "center"
+    }}
+  >
+    <div style={{ fontSize: "0.8rem" }}>{label}</div>
+    <div style={{ fontSize: "1.4rem", fontWeight: "bold" }}>
+      {value.toFixed(2)}
+    </div>
+  </div>
+);
+
+/* STYLES */
+
+const styles: any = {
+  container: {
+    display: "flex",
+    height: "100vh",
+    fontFamily: "Inter, sans-serif",
+    backgroundColor: "#f4f6f8"
+  },
+  sidebar: {
+    width: "320px",
+    padding: "1.5rem",
+    backgroundColor: "#ffffff",
+    display: "flex",
+    flexDirection: "column",
+    boxShadow: "2px 0 8px rgba(0,0,0,0.05)"
+  },
+  main: {
+    flex: 1,
+    padding: "2rem",
+    overflowY: "auto"
+  },
+  articleCard: {
+    padding: "1rem",
+    borderRadius: "12px",
+    marginBottom: "0.8rem",
+    cursor: "pointer",
+    boxShadow: "0 2px 6px rgba(0,0,0,0.05)"
+  },
+  formCard: {
+    marginTop: "1rem",
+    padding: "1rem",
+    borderRadius: "12px",
+    backgroundColor: "#f9fafb",
+    boxShadow: "0 2px 6px rgba(0,0,0,0.05)"
+  },
+  input: {
+    width: "100%",
+    padding: "0.6rem",
+    marginBottom: "0.6rem",
+    borderRadius: "8px",
+    border: "1px solid #ddd"
+  },
+  textarea: {
+    width: "100%",
+    height: "80px",
+    padding: "0.6rem",
+    marginBottom: "0.6rem",
+    borderRadius: "8px",
+    border: "1px solid #ddd"
+  },
+  primaryButton: {
+    padding: "0.6rem",
+    borderRadius: "8px",
+    border: "none",
+    backgroundColor: "#2563eb",
+    color: "white",
+    cursor: "pointer",
+    fontWeight: "bold",
+    marginBottom: "0.5rem"
+  },
+  detailCard: {
+    backgroundColor: "white",
+    padding: "2rem",
+    borderRadius: "16px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)"
+  },
+  scoreGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)",
+    gap: "1rem",
+    marginTop: "1rem"
+  },
+  verificationBox: {
+    marginTop: "1rem",
+    padding: "1rem",
+    borderRadius: "8px",
+    backgroundColor: "#f4f6f8"
+  },
+  placeholder: {
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    height: "100%",
+    color: "#888"
+  },
+  hash: {
+    fontSize: "0.8rem",
+    wordBreak: "break-all"
+  }
+};
