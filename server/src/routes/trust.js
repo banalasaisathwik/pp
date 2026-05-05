@@ -69,9 +69,7 @@ router.get('/author/:email', async (req, res) => {
   try {
     const author = await Author.findOne({ email: req.params.email }).lean();
     if (!author) {
-          author = new Author({ name: source || 'Unknown', email: authorEmail });
-  await author.save();
-
+      return res.status(404).json({ error: 'Author not found' });
     }
 
     const articles = await Article.find({ author: author._id }).sort({ createdAt: -1 });

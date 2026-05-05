@@ -1,31 +1,34 @@
 const { ethers } = require("ethers");
 require("dotenv").config();
+const { transactionUrl } = require("./explorer");
 
-console.log("🔗 Blockchain Service Loading...");
+console.log("Blockchain Service Loading...");
 
-const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
-const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+function requiredEnv(name) {
+  if (!process.env[name]) {
+    throw new Error(`${name} is required for blockchain anchoring`);
+  }
 
-console.log("Using wallet:", wallet.address);
-console.log("RPC URL:", process.env.RPC_URL);
-console.log("Contract address:", process.env.CONTRACT_ADDRESS);
+  return process.env[name];
+}
 
-const contractAddress = process.env.CONTRACT_ADDRESS;
+const provider = new ethers.JsonRpcProvider(requiredEnv("RPC_URL"));
+const wallet = new ethers.Wallet(requiredEnv("PRIVATE_KEY"), provider);
+const contractAddress = requiredEnv("CONTRACT_ADDRESS");
 const abi = require("./TrustAnchorABI.json");
-
 const contract = new ethers.Contract(contractAddress, abi, wallet);
 
 async function storeOnChain(articleHash, imageHash, finalScore) {
   const scoreScaled = Math.floor(finalScore * 100);
 
-  const tx = await contract.storeProof(
-    articleHash,
-    imageHash,
-    scoreScaled
-  );
-
+  const tx = await contract.storeProof(articleHash, imageHash, scoreScaled);
   await tx.wait();
 
   return tx.hash;
 }
-module.exports = { storeOnChain };
+
+function getTransactionExplorerUrl(txHash) {
+  return transactionUrl(txHash, process.env.CHAIN_ID || "11155111");
+}
+
+module.exports = { storeOnChain, getTransactionExplorerUrl };

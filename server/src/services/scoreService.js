@@ -6,7 +6,7 @@ const Author = require('../models/Author');
 const axios = require('axios');
 const crypto = require('crypto');
 const mongoose = require('mongoose');
-const { storeOnChain } = require("../../blockchain/blockchainService");
+const { storeOnChain, getTransactionExplorerUrl } = require("../../blockchain/blockchainService");
 
 async function calculateAndUpdateScores({ url, title, text, source, authorEmail }) {
 
@@ -19,6 +19,7 @@ async function calculateAndUpdateScores({ url, title, text, source, authorEmail 
   let textHash;
   let f_i;
   let author;
+  let savedArticle;
 
   try {
     session.startTransaction();
@@ -40,10 +41,13 @@ async function calculateAndUpdateScores({ url, title, text, source, authorEmail 
 
       return {
         fromCache: true,
+        articleId: existingArticle._id,
+        textHash: existingArticle.textHash,
         M: existingArticle.M,
         F: existingArticle.F,
         C: existingArticle.C,
         f: existingArticle.f,
+        image: existingArticle.image,
         author: {
           name: existingArticle.author?.name || source || 'Unknown',
           email: existingArticle.author?.email || authorEmail,
@@ -110,7 +114,7 @@ try {
     const readingTime = Math.ceil(wordCount / 200);
 
     // 💾 Save Article
-    const newArticle = new Article({
+    savedArticle = new Article({
       url,
       source,
       title,
@@ -128,7 +132,7 @@ try {
       createdAt: new Date()
     });
 
-    await newArticle.save({ session });
+    await savedArticle.save({ session });
 
     // 📈 Bayesian Trust Update
     author.totalArticles += 1;
@@ -172,6 +176,7 @@ try {
       $set: {
         blockchain: {
           txHash,
+          explorerUrl: getTransactionExplorerUrl(txHash),
           anchoredAt: new Date(),
           anchored: true
         }
@@ -184,6 +189,8 @@ try {
 }
   return {
     fromCache: false,
+    articleId: savedArticle?._id,
+    textHash,
     f: f_i,
     author: {
       name: author.name,
