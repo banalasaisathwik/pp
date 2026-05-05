@@ -56,9 +56,8 @@ type ImageTrustResult = {
   reused?: boolean;
   similarityPercentage?: number;
 
-  // 🔥 ADD THIS
   watermarkedImage?: string;
-    matchedImage?: string;
+  matchedImage?: string;
 
 
   info?: {
@@ -113,6 +112,12 @@ function txExplorerUrl(txHash?: string, savedUrl?: string) {
   if (savedUrl) return savedUrl;
   if (!txHash) return "";
   return `https://sepolia.etherscan.io/tx/${txHash}`;
+}
+
+function imageSrc(value?: string) {
+  if (!value) return "";
+  if (/^(https?:\/\/|data:image\/)/i.test(value)) return value;
+  return `data:image/png;base64,${value}`;
 }
 
 export default function App() {
@@ -516,6 +521,9 @@ function ImageTrustTool() {
     }
   };
 
+  const processedImageSrc = imageSrc(result?.watermarkedImage);
+  const matchedImageSrc = imageSrc(result?.matchedImage || result?.info?.matchedWith);
+
   return (
     <Panel title="Manual Image Check" icon={<Upload size={18} />}>
       <label className="upload-drop">
@@ -557,28 +565,18 @@ function ImageTrustTool() {
           </div>
           <KeyValue label="Match Type" value={result.info?.matchType || "None"} />
           <KeyValue label="Signals" value={result.info?.matchSignals?.join(", ") || "No strong signal"} />
-         {result.watermarkedImage && (
-  <div style={{ marginTop: 12 }}>
-    <strong>Processed Image</strong>
-
-    <img
-      src={`data:image/png;base64,${result.watermarkedImage}`}
-      style={{
-        width: "250px",
-        marginTop: "8px",
-        borderRadius: "8px",
-        border: "1px solid #ddd"
-      }}
-    />
-    <pre>{JSON.stringify(result, null, 2)}</pre>
-  </div>
-)}
-{result.matchedImage && (
-  <img
-    src={result.matchedImage}   // ✅ direct URL
-    style={{ width: 250 }}
-  />
-)}
+          {processedImageSrc && (
+            <div className="matched-image">
+              <span>Processed image</span>
+              <img src={processedImageSrc} alt="Processed image evidence" />
+            </div>
+          )}
+          {matchedImageSrc && (
+            <div className="matched-image">
+              <span>Matched image</span>
+              <img src={matchedImageSrc} alt="Matched image evidence" />
+            </div>
+          )}
         </div>
       )}
       

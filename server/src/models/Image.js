@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const ImageSchema = new mongoose.Schema({
   url: { type: String, required: true },
+  image: { type: String },
   sha256: { type: String, required: true, unique: true },
   phash: { type: String, required: true, index: true },
   fingerprints: {

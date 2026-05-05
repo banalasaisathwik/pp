@@ -146,6 +146,10 @@ function normalizePayload(payload) {
   return {};
 }
 
+function isRenderableImageUrl(value) {
+  return typeof value === "string" && /^(https?:\/\/|data:image\/)/i.test(value);
+}
+
 function resolveImageInput(req) {
   if (req.files?.image) {
     const imageFile = Array.isArray(req.files.image) ? req.files.image[0] : req.files.image;
@@ -385,7 +389,7 @@ async function handleImageTrust(req, res) {
       articleId: article?._id || articleId || null,
       info,
       watermarkedImage: processed.watermarkedImage,
-        matchedImage: match.bestMatch?.image || null
+      matchedImage: match.bestMatch?.image || (isRenderableImageUrl(match.bestMatch?.url) ? match.bestMatch.url : null)
 
     });
   } catch (err) {
