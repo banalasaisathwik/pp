@@ -1,51 +1,61 @@
-const tf = require('@tensorflow/tfjs');
-const use = require('@tensorflow-models/universal-sentence-encoder');
+// detectors/factBased.js
 
-const axios = require('axios');
+const { pipeline } = require('@xenova/transformers');
 
-let USE_MODEL = null;
-async function getModel(){
-  if(USE_MODEL) return USE_MODEL;
-  USE_MODEL = await use.load();
-  return USE_MODEL;
-}
+let embedder;
 
-async function wikiSummaryForQuery(query){
-  try{
-    const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`;
-    const r = await axios.get(url);
-    return r.data.extract || null;
-  }catch(e){
-    return null;
+async function getEmbedder() {
+  if (!embedder) {
+    embedder = await pipeline(
+      'feature-extraction',
+      'Xenova/all-MiniLM-L6-v2'
+    );
   }
+  return embedder;
 }
 
-async function cosineSim(a, b){
-  const model = await getModel();
-  const embeddings = await model.embed([a, b]);
-  const embA = embeddings.slice([0,0],[1,embeddings.shape[1]]);
-  const embB = embeddings.slice([1,0],[1,embeddings.shape[1]]);
-  const dot = embA.dot(embB.transpose()).dataSync()[0];
-  const normA = embA.norm().dataSync()[0];
-  const normB = embB.norm().dataSync()[0];
-  const cos = dot / (normA*normB + 1e-10);
-  return cos;
+function cosine(a, b) {
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
 }
 
-async function computeFactScore(text){
-  const sentences = (text.match(/[^.!?]+[.!?]+/g) || []).slice(0,6); // first few claims
-  if(sentences.length === 0) return 0.5;
-  let supported = 0;
-  for(const s of sentences){
-    const q = s.split(' ').slice(0,6).join(' ').replace(/[^a-zA-Z0-9\s]/g,'');
-    const wiki = await wikiSummaryForQuery(q);
-    if(wiki){
-      const sim = await cosineSim(s, wiki);
-      if(sim > 0.35) supported++;
+async function computeFactScore(text) {
+  try {
+    const emb = await getEmbedder();
+
+    const sentences = text.split('.').slice(0, 5);
+
+    if (sentences.length < 2) return 0.5;
+
+    const vectors = [];
+
+    for (let s of sentences) {
+      const v = await emb(s, { pooling: 'mean' });
+      vectors.push(v.data);
     }
+
+    // measure consistency
+    let total = 0;
+    let count = 0;
+
+    for (let i = 0; i < vectors.length; i++) {
+      for (let j = i + 1; j < vectors.length; j++) {
+        total += cosine(vectors[i], vectors[j]);
+        count++;
+      }
+    }
+
+    return total / count;
+
+  } catch (err) {
+    console.warn("Fact model failed");
+    return 0.5;
   }
-const rawScore = supported / sentences.length;
-return Math.max(0.1, rawScore);
 }
 
-module.exports = { computeFactScore, getModel };
+module.exports = { computeFactScore };

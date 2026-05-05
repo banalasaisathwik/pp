@@ -245,8 +245,8 @@ export default function App() {
             <ShieldCheck size={22} />
           </div>
           <div>
-            <p className="eyebrow">TrustChain</p>
-            <h1>Evidence Desk</h1>
+            <p className="eyebrow">Guide:Mr.Harish Goud,cordinator:Mr.Sagar</p>
+            <h1>Team IT-1/120</h1>
           </div>
         </div>
 
@@ -348,7 +348,7 @@ export default function App() {
       <section className="content-stage">
         <header className="top-bar">
           <div>
-            <p className="eyebrow">Operational Overview</p>
+            {/* <p className="eyebrow">Operational Overview</p> */}
             <h2>Article credibility, image reuse, and chain proof in one place</h2>
           </div>
           <div className="top-actions">

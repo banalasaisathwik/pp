@@ -1,33 +1,41 @@
-const axios = require('axios');
-const cheerio = require('cheerio');
-const Sentiment = require('sentiment');
-const sentiment = new Sentiment();
+// detectors/contextBased.js
 
-async function fetchHTML(url){
-  try{
-    const r = await axios.get(url, { timeout: 4000 });
-    return r.data;
-  }catch(e){ return null; }
+const nlp = require('compromise');
+
+function sourceScore(url) {
+  if (!url) return 0.5;
+
+  if (url.includes("gov") || url.includes("edu")) return 0.9;
+  if (url.includes("news") || url.includes("bbc")) return 0.8;
+  if (url.includes("blog") || url.includes("unknown")) return 0.4;
+
+  return 0.6;
 }
 
-async function computeContextScore(url, title, text){
-  const html = await fetchHTML(url);
-  let adsCount = 0;
-  if(html){
-    const $ = cheerio.load(html);
-    adsCount = $('iframe, ins, .ads, [id*="ad"], [class*="ad"]').length;
+function entityConsistency(text) {
+  const doc = nlp(text);
+
+  const people = doc.people().out('array');
+  const places = doc.places().out('array');
+
+  const density = (people.length + places.length) / (text.split(' ').length);
+
+  return Math.min(1, density * 10);
+}
+
+async function computeContextScore(url, title, text) {
+  try {
+    const sScore = sourceScore(url);
+    const eScore = entityConsistency(text);
+
+    const titleMatch =
+      text.toLowerCase().includes(title.toLowerCase()) ? 1 : 0.5;
+
+    return 0.4 * sScore + 0.4 * eScore + 0.2 * titleMatch;
+
+  } catch {
+    return 0.5;
   }
-  const adPenalty = Math.min(1, adsCount / 3); // >3 is suspicious
-
-  let domainScore = 0.7; 
-
-  const titleSent = sentiment.analyze(title || '').score;
-  const bodySent = sentiment.analyze(text || '').score;
-  const gap = Math.abs(titleSent - bodySent);
-  const gapPenalty = Math.min(1, gap / 10);
-
-  const C = Math.max(0, 1 - 0.6*adPenalty - 0.4*gapPenalty) * domainScore;
-  return Math.max(0, Math.min(1, C));
 }
 
 module.exports = { computeContextScore };

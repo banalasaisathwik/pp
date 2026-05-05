@@ -1,41 +1,41 @@
-const Sentiment = require('sentiment');
-const { removeStopwords } = require('stopword');
-const textStat = require('text-statistics'); // optional if you add package
+// detectors/messageBased.js
 
-const sentiment = new Sentiment();
+const { pipeline } = require('@xenova/transformers');
 
-function cleanText(text){
-  if(!text) return '';
-  return text.replace(/<[^>]*>/g,' ').replace(/[^a-zA-Z0-9\s\.!?]/g,' ').trim();
+let classifier;
+
+async function getClassifier() {
+  if (!classifier) {
+    classifier = await pipeline(
+      'sentiment-analysis',
+      'Xenova/distilbert-base-uncased-finetuned-sst-2-english'
+    );
+  }
+  return classifier;
 }
 
-function computeMessageScore(text){
-  const clean = cleanText(text);
-  const words = clean.split(/\s+/).filter(Boolean);
-  if (words.length < 8) {
-  return 0.2; // extremely short content suspicious
+function sensationalScore(text) {
+  const caps = (text.match(/[A-Z]{5,}/g) || []).length;
+  const exclamations = (text.match(/!/g) || []).length;
+  return Math.min(1, (caps + exclamations) / 10);
 }
-  if(words.length === 0) return 0.5;
 
-  const sentences = clean.split(/[.!?]+/).filter(Boolean);
-  const avgSentLen = words.length / Math.max(1, sentences.length);
-  const rScore = Math.max(0, 1 - Math.min(20, avgSentLen)/20); // normalize 0..1
+async function computeMessageScore(text) {
+  try {
+    const clf = await getClassifier();
+    const res = await clf(text.slice(0, 512));
 
-  const unique = new Set(words.map(w => w.toLowerCase()));
-  const ttr = unique.size / words.length;
+    const sentiment = res[0].score;
 
-  const s = sentiment.analyze(clean);
-  const polarity = (s.score + 10) / 20; // map -10..10 to 0..1
-  const subjectivityPenalty = 1 - Math.min(1, Math.abs(polarity - 0.5)*2);
+    const sensational = sensationalScore(text);
 
-  const exclam = (clean.match(/!/g) || []).length;
-  const allcaps = (clean.match(/\b[A-Z]{3,}\b/g) || []).length;
-const emphStrength = (exclam * 0.4) + (allcaps * 0.6);
-const emph = Math.min(1, emphStrength);
-const pScore = 1 - Math.min(1, emph);
+    // combine
+    return 0.7 * sentiment + 0.3 * (1 - sensational);
 
-  const M = 0.3*rScore + 0.3*ttr + 0.2*subjectivityPenalty + 0.2*pScore;
-  return Math.max(0, Math.min(1, M));
+  } catch (err) {
+    console.warn("Message model failed, fallback.");
+    return 0.5;
+  }
 }
 
 module.exports = { computeMessageScore };
